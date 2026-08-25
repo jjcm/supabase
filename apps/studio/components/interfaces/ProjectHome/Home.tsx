@@ -14,15 +14,14 @@ import {
 } from '@dnd-kit/sortable'
 import { useFlag, useParams } from 'common'
 import dayjs from 'dayjs'
+import dynamic from 'next/dynamic'
 import { useEffect, useRef } from 'react'
 import { cn } from 'ui'
+import { GenericSkeletonLoader } from 'ui-patterns/ShimmeringLoader'
 
 import { AdvisorSection } from './AdvisorSection'
 import { ConnectSection } from './ConnectSection'
-import { CustomReportSection } from './CustomReportSection'
 import { DEFAULT_SECTION_ORDER, mergeSectionOrder } from './Home.utils'
-import { ProjectUsageSection } from './ProjectUsageSection'
-import { ProjectUsageSectionDeltas } from './ProjectUsageSectionDeltas'
 import { TopSection } from '@/components/interfaces/ProjectHome/TopSection'
 import { ProjectNeedsSecuring } from '@/components/layouts/ProjectNeedsSecuring/ProjectNeedsSecuring'
 import { ScaffoldContainer, ScaffoldSection } from '@/components/layouts/Scaffold'
@@ -32,6 +31,23 @@ import { useSelectedProjectQuery } from '@/hooks/misc/useSelectedProject'
 import { IS_PLATFORM, PROJECT_STATUS } from '@/lib/constants'
 import { useTrack } from '@/lib/telemetry/track'
 import { useAppStateSnapshot } from '@/state/app-state'
+
+// These sections pull in the charting library and report-block machinery
+// (several hundred KB), are rendered below the fold, and are platform-only —
+// self-hosted never renders them at all. Load them on demand so the home
+// page's critical path stays free of charting code.
+const CustomReportSection = dynamic(
+  () => import('./CustomReportSection').then((m) => m.CustomReportSection),
+  { loading: () => <GenericSkeletonLoader /> }
+)
+const ProjectUsageSection = dynamic(
+  () => import('./ProjectUsageSection').then((m) => m.ProjectUsageSection),
+  { loading: () => <GenericSkeletonLoader /> }
+)
+const ProjectUsageSectionDeltas = dynamic(
+  () => import('./ProjectUsageSectionDeltas').then((m) => m.ProjectUsageSectionDeltas),
+  { loading: () => <GenericSkeletonLoader /> }
+)
 
 const SORT_GRIP_CLASS = 'absolute -left-10'
 
