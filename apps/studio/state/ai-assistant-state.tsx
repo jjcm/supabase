@@ -1,5 +1,4 @@
-import { Chat, type UIMessage as MessageType } from '@ai-sdk/react'
-import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai'
+import type { Chat, UIMessage as MessageType } from '@ai-sdk/react'
 import { LOCAL_STORAGE_KEYS, safeLocalStorage } from 'common'
 import { DBSchema, IDBPDatabase, openDB } from 'idb'
 import { debounce } from 'lodash'
@@ -16,17 +15,9 @@ import { proxy, ref, snapshot, subscribe, useSnapshot } from 'valtio'
 
 import type { SqlSnippetSource } from '@/components/interfaces/SQLEditor/querySource'
 import type { AiSupportStatus } from '@/data/feedback/ai-chat-front-sync'
-import { constructHeaders } from '@/data/fetchers'
-import { getQueryClient } from '@/data/query-client'
 import { useSelectedProjectQuery } from '@/hooks/misc/useSelectedProject'
-import { prepareMessagesForAPI } from '@/lib/ai/message-utils'
 import { isKnownAssistantModelId } from '@/lib/ai/model.utils'
 import type { AssistantModelId } from '@/lib/ai/model.utils'
-import {
-  applyNotebookCacheEffects,
-  collectNotebookCacheEffects,
-} from '@/lib/ai/notebook-cache-invalidation'
-import { BASE_PATH, IS_PLATFORM } from '@/lib/constants'
 
 type SuggestionsType = {
   title: string
@@ -278,128 +269,47 @@ function ensureActiveChatOrInitialize(state: AiAssistantState) {
   }
 }
 
-function createChatInstance(
+// The module that constructs AI-SDK-backed chat instances. Loaded lazily so
+// the AI SDK and its transitive dependencies (~140KB gzip) stay out of the
+// shared bundle of every page — this state module is imported by _app, but
+// the SDK is only needed once a chat instance is actually created.
+let chatInstanceModule: typeof import('./ai-assistant-chat-instance') | null = null
+
+/**
+ * Creates (if missing) the SDK-backed chat instance for `id`, loading the
+ * chat-instance module on first use. `state.chatInstances[id]` is set once
+ * the instance exists; consumers already tolerate it being briefly undefined
+ * while the module downloads. `onReady` runs with the instance either way.
+ */
+function ensureChatInstanceAsync(
   state: AiAssistantState,
-  options: { id: string; initialMessages: MessageType[] }
+  id: string,
+  getInitialMessages: () => MessageType[],
+  onReady?: (instance: Chat<MessageType>) => void
 ) {
-  // Seeded so effects already reflected in persisted history aren't replayed on the first
-  // onFinish after a reload.
-  const processedNotebookToolCallIds = new Set<string>(
-    collectNotebookCacheEffects(options.initialMessages, new Set()).map(
-      (effect) => effect.toolCallId
-    )
-  )
+  const create = (m: typeof import('./ai-assistant-chat-instance')) => {
+    // The chat may have been deleted while the module was loading
+    if (!state.chats[id]) return
+    let instance = state.chatInstances[id]
+    if (!instance) {
+      instance = m.createChatInstance(state, { id, initialMessages: getInitialMessages() })
+      state.chatInstances[id] = ref(instance)
+    }
+    onReady?.(instance)
+  }
 
-  // The project a pending request's tool calls actually ran against — captured when the
-  // request is sent, not re-read from (mutable) state.context in onFinish, since the user
-  // can switch projects while the request is still in flight.
-  let requestProjectRef: string | undefined
-
-  return new Chat<MessageType>({
-    id: options.id,
-    messages: options.initialMessages.map((message) => sanitizeForCloning(message)),
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
-    transport: new DefaultChatTransport({
-      api: `${BASE_PATH}/api/ai/sql/generate-v4`,
-      fetch: async (url, init) => {
-        const response = await globalThis.fetch(url as RequestInfo, init)
-        const spanId = response.headers.get('x-braintrust-span-id')
-        if (spanId) {
-          state.pendingSpanIds[options.id] = spanId
-        }
-        return response
-      },
-      async prepareSendMessagesRequest({ messages, ...opts }) {
-        const cleanedMessages = prepareMessagesForAPI(messages)
-        const headerData = await constructHeaders()
-        const authorizationHeader = headerData.get('Authorization')
-
-        // Get the chat specific to this request to ensure we have the correct name
-        const chat = state.chats[options.id]
-
-        requestProjectRef = state.context.projectRef
-
-        return {
-          ...opts,
-          body: {
-            messages: cleanedMessages,
-            projectRef: state.context.projectRef,
-            connectionString: state.context.connectionString,
-            chatId: options.id,
-            chatName: chat?.name,
-            supportMode: chat?.supportMetadata?.isSupportChat ?? false,
-            orgSlug: state.context.orgSlug,
-            context: state.context,
-            model: state.model,
-            ...opts.body,
-          },
-          ...(IS_PLATFORM ? { headers: { Authorization: authorizationHeader ?? '' } } : {}),
-        }
-      },
-    }),
-    async onToolCall({ toolCall }) {
-      if (toolCall.dynamic) {
-        return
-      }
-
-      if (toolCall.toolName === 'escalate_to_human') {
-        state.setSupportLifecycleStatus(options.id, 'escalated')
-        return
-      }
-
-      if (toolCall.toolName === 'resolve_support_conversation') {
-        state.setSupportLifecycleStatus(options.id, 'bot_resolved')
-        return
-      }
-
-      if (toolCall.toolName === 'rename_chat') {
-        const { newName } = toolCall.input as { newName: string }
-
-        if (options.id && newName?.trim()) {
-          state.renameChat(options.id, newName.trim())
-        }
-      }
-    },
-    onFinish(_result) {
-      // Sync messages back to state
-      const chatInstance = state.chatInstances[options.id]
-      if (chatInstance) {
-        const messages = chatInstance.messages
-        const chat = state.chats[options.id]
-        if (chat) {
-          // Clone first — valtio's proxy() mutates nested properties in place and would corrupt the SDK's live array
-          chat.messages = messages.map((message) => sanitizeForCloning(message))
-          chat.updatedAt = new Date()
-        }
-
-        // Associate pending span ID with the last assistant message
-        const pendingSpanId = state.pendingSpanIds[options.id]
-        if (pendingSpanId) {
-          const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant')
-          if (lastAssistantMsg) {
-            state.messageSpanIds[lastAssistantMsg.id] = pendingSpanId
-          }
-          delete state.pendingSpanIds[options.id]
-        }
-
-        // Sync support chat messages to Front (fire-and-forget, dynamic import to avoid SSR issues)
-        if (chat?.supportMetadata) {
-          import('@/state/ai-chat-front-sync')
-            .then(({ syncSupportChatToFront }) => syncSupportChatToFront(options.id, state))
-            .catch(() => {})
-        }
-
-        const projectRef = requestProjectRef
-        if (projectRef) {
-          const effects = collectNotebookCacheEffects(messages, processedNotebookToolCallIds)
-          effects.forEach((effect) => processedNotebookToolCallIds.add(effect.toolCallId))
-          if (effects.length > 0) {
-            void applyNotebookCacheEffects({ queryClient: getQueryClient(), projectRef, effects })
-          }
-        }
-      }
-    },
-  })
+  if (chatInstanceModule) {
+    create(chatInstanceModule)
+    return
+  }
+  import('./ai-assistant-chat-instance')
+    .then((m) => {
+      chatInstanceModule = m
+      create(m)
+    })
+    .catch((error) => {
+      console.error('Failed to load AI chat module:', error)
+    })
 }
 
 export const createAiAssistantState = (): AiAssistantState => {
@@ -446,14 +356,18 @@ export const createAiAssistantState = (): AiAssistantState => {
         [chatId]: newChat,
       }
 
-      const chatInstance = createChatInstance(state, { id: chatId, initialMessages: [] })
-      state.chatInstances[chatId] = ref(chatInstance)
-
-      if (options?.initialMessage) {
-        chatInstance.sendMessage({
-          text: options.initialMessage,
-        })
-      }
+      ensureChatInstanceAsync(
+        state,
+        chatId,
+        () => [],
+        (chatInstance) => {
+          if (options?.initialMessage) {
+            chatInstance.sendMessage({
+              text: options.initialMessage,
+            })
+          }
+        }
+      )
 
       return chatId
     },
@@ -497,9 +411,7 @@ export const createAiAssistantState = (): AiAssistantState => {
         [chatId]: newChat,
       }
 
-      state.chatInstances[chatId] = ref(
-        createChatInstance(state, { id: chatId, initialMessages: branchedMessages })
-      )
+      ensureChatInstanceAsync(state, chatId, () => branchedMessages)
 
       return chatId
     },
@@ -546,9 +458,7 @@ export const createAiAssistantState = (): AiAssistantState => {
     ensureChatInstance: (id: string) => {
       const chat = state.chats[id]
       if (chat && !state.chatInstances[id]) {
-        state.chatInstances[id] = ref(
-          createChatInstance(state, { id, initialMessages: chat.messages })
-        )
+        ensureChatInstanceAsync(state, id, () => state.chats[id]?.messages ?? [])
       }
     },
 

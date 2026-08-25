@@ -82,6 +82,8 @@ describe('createChatInstance onFinish — notebook cache invalidation via a real
     const state = createAiAssistantState()
     state.setContext({ projectRef: PROJECT_REF })
     const chatId = state.createChat({ name: 'Delete a cell' })
+    // Chat instances are created via a lazy dynamic import of the AI SDK module
+    await vi.waitFor(() => expect(state.chatInstances[chatId]).toBeDefined())
     const chatInstance = state.chatInstances[chatId]
 
     // First stream: assistant proposes update_notebook, which needs approval.
@@ -135,6 +137,8 @@ describe('createChatInstance onFinish — notebook cache invalidation via a real
     const state = createAiAssistantState()
     state.setContext({ projectRef: PROJECT_REF })
     const chatId = state.createChat({ name: 'Delete a cell' })
+    // Chat instances are created via a lazy dynamic import of the AI SDK module
+    await vi.waitFor(() => expect(state.chatInstances[chatId]).toBeDefined())
     const chatInstance = state.chatInstances[chatId]
 
     testContext.queuedStreams.push([
