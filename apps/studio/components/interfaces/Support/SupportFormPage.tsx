@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { Loader2, Wrench } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useReducer, type Dispatch, type PropsWithChildren } from 'react'

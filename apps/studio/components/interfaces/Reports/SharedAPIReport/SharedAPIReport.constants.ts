@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'common'
 import { isEqual } from 'lodash'

@@ -63,7 +63,7 @@ import { TimestampInfoProvider } from 'ui-patterns/TimestampInfo'
 import { StudioCommandMenu } from '@/components/interfaces/App/CommandMenu'
 import { StudioCommandProvider as CommandProvider } from '@/components/interfaces/App/CommandMenu/StudioCommandProvider'
 import { FeaturePreviewContextProvider } from '@/components/interfaces/App/FeaturePreview/FeaturePreviewContext'
-import { FeaturePreviewModal } from '@/components/interfaces/App/FeaturePreview/FeaturePreviewModal'
+import { FeaturePreviewModalLazy } from '@/components/interfaces/App/FeaturePreview/FeaturePreviewModalLazy'
 import { MonacoThemeProvider } from '@/components/interfaces/App/MonacoThemeProvider'
 import { RouteValidationWrapper } from '@/components/interfaces/App/RouteValidationWrapper'
 import { ShellFallback } from '@/components/interfaces/App/ShellFallback'
@@ -386,7 +386,7 @@ function RootComponent() {
                                   </MainScrollContainerProvider>
                                   <GlobalShortcuts />
                                   <StudioCommandMenu />
-                                  <FeaturePreviewModal />
+                                  <FeaturePreviewModalLazy />
                                 </FeaturePreviewContextProvider>
                               </BannerStackProvider>
                               <Toaster />

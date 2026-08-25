@@ -1,4 +1,5 @@
 import { LOCAL_STORAGE_KEYS, mergeRefs, useParams } from 'common'
+import dynamic from 'next/dynamic'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import Head from 'next/head'
@@ -32,16 +33,8 @@ import BuildingState from './BuildingState'
 import ConnectingState from './ConnectingState'
 import { getSectionKeyFromPathname, MobileMenuContent } from './LayoutHeader/MobileMenuContent'
 import { ProjectPausedState } from './PausedState/ProjectPausedState'
-import { PauseFailedState } from './PauseFailedState'
-import { PausingState } from './PausingState'
-import { ResizingState } from './ResizingState'
-import RestartingState from './RestartingState'
-import { RestoreFailedState } from './RestoreFailedState'
-import { RestoringState } from './RestoringState'
-import { UnhealthyState } from './UnhealthyState'
-import { UpgradingState } from './UpgradingState'
 import { CreateBranchModal } from '@/components/interfaces/BranchManagement/CreateBranchModal'
-import { ProjectAPIDocs } from '@/components/interfaces/ProjectAPIDocs/ProjectAPIDocs'
+import { ProjectAPIDocsLazy } from '@/components/interfaces/ProjectAPIDocs/ProjectAPIDocsLazy'
 import { BannerFreeMicroUpgrade } from '@/components/ui/BannerStack/Banners/BannerFreeMicroUpgrade'
 import { BANNER_ID, useBannerStack } from '@/components/ui/BannerStack/BannerStackProvider'
 import { ButtonTooltip } from '@/components/ui/ButtonTooltip'
@@ -62,6 +55,21 @@ import { useDatabaseSelectorStateSnapshot } from '@/state/database-selector'
 
 // [Joshen] This is temporary while we unblock users from managing their project
 // if their project is not responding well for any reason. Eventually needs a bit of an overhaul
+// Full-screen project state screens only shown while a project is in an
+// exceptional state (pausing, restarting, failed, ...). Loaded on demand so
+// their dependencies (e.g. the syntax-highlighted CLI instructions in the
+// failure states) stay out of the layout's critical path.
+const PauseFailedState = dynamic(() => import('./PauseFailedState').then((m) => m.PauseFailedState))
+const PausingState = dynamic(() => import('./PausingState').then((m) => m.PausingState))
+const ResizingState = dynamic(() => import('./ResizingState').then((m) => m.ResizingState))
+const RestartingState = dynamic(() => import('./RestartingState'))
+const RestoreFailedState = dynamic(() =>
+  import('./RestoreFailedState').then((m) => m.RestoreFailedState)
+)
+const RestoringState = dynamic(() => import('./RestoringState').then((m) => m.RestoringState))
+const UnhealthyState = dynamic(() => import('./UnhealthyState').then((m) => m.UnhealthyState))
+const UpgradingState = dynamic(() => import('./UpgradingState').then((m) => m.UpgradingState))
+
 const routesToIgnoreProjectDetailsRequest = [
   '/project/[ref]/settings/infrastructure',
   '/project/[ref]/settings/addons',
@@ -351,7 +359,7 @@ export const ProjectLayout = forwardRef<HTMLDivElement, PropsWithChildren<Projec
           </ResizablePanelGroup>
         </div>
         <CreateBranchModal />
-        <ProjectAPIDocs />
+        <ProjectAPIDocsLazy />
       </>
     )
   }

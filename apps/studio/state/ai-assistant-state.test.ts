@@ -1,11 +1,21 @@
 import { proxy, ref } from 'valtio/vanilla'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   createAiAssistantState,
   sanitizeForCloning,
   whenAiAssistantInitialized,
+  type AiAssistantState,
 } from './ai-assistant-state'
+
+// Chat instances are created via a lazy dynamic import of the AI SDK module,
+// so they appear one microtask after createChat/newChat.
+const waitForChatInstance = async (state: AiAssistantState, chatId: string) => {
+  await vi.waitFor(() => {
+    expect(state.chatInstances[chatId]).toBeDefined()
+  })
+  return state.chatInstances[chatId]
+}
 
 describe('AI assistant chat message sync', () => {
   // FE-3954: syncing the live array into valtio corrupted it with Proxies, breaking structuredClone in addToolApprovalResponse
@@ -79,10 +89,11 @@ describe('AI assistant chat surface isolation', () => {
     })
   })
 
-  it('mutates an explicit chat without changing or clearing the sidebar chat', () => {
+  it('mutates an explicit chat without changing or clearing the sidebar chat', async () => {
     const state = createAiAssistantState()
     const sidebarChatId = state.newChat({ name: 'Sidebar chat' })
     const explorerChatId = state.createChat({ name: 'Explorer chat' })
+    await waitForChatInstance(state, explorerChatId)
     state.chats[sidebarChatId].messages = [
       { id: 'sidebar-message', role: 'user', parts: [{ type: 'text', text: 'Keep me' }] },
     ]
@@ -101,9 +112,10 @@ describe('AI assistant chat surface isolation', () => {
     expect(state.chatInstances[explorerChatId].messages).toHaveLength(0)
   })
 
-  it('keeps explicit chat message edits synchronized with the live chat instance', () => {
+  it('keeps explicit chat message edits synchronized with the live chat instance', async () => {
     const state = createAiAssistantState()
     const chatId = state.createChat({ name: 'Explorer chat' })
+    await waitForChatInstance(state, chatId)
     const messages = [
       { id: 'message-1', role: 'user' as const, parts: [{ type: 'text' as const, text: 'First' }] },
       {

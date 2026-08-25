@@ -1,10 +1,10 @@
-import { parseSchemaComment } from '@stripe/sync-engine/supabase'
 import { PermissionAction } from '@supabase/shared-types/out/constants'
 import { useMemo } from 'react'
 
 import { type WrapperMeta } from '../Wrappers/Wrappers.types'
 import { wrapperMetaComparator } from '../Wrappers/Wrappers.utils'
 import { type IntegrationDefinition } from './Integrations.constants'
+import { parseSchemaComment } from '@/components/interfaces/Integrations/templates/StripeSyncEngine/schema-comment'
 import {
   isInstalled as checkIsInstalled,
   findStripeSchema,

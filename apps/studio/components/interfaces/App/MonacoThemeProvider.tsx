@@ -1,6 +1,7 @@
-import { useMonaco } from '@monaco-editor/react'
 import { useTheme } from 'next-themes'
-import { useMemo } from 'react'
+import { useEffect } from 'react'
+
+import { onMonacoLoaded } from '@/lib/configure-monaco-loader'
 
 export const getTheme = (theme: string) => {
   const isDarkMode = theme.includes('dark')
@@ -24,21 +25,24 @@ export const getTheme = (theme: string) => {
 }
 
 /**
- * This component is used to set the theme for the Monaco editor. This would be a hook but it needs to be placed between
- * ThemeProvider and the layout page so a component is the most convenient way to do this.
+ * Defines the `supabase` Monaco theme as soon as Monaco loads (and re-defines
+ * it when the app theme changes).
+ *
+ * Deliberately does NOT use `useMonaco()`: that hook eagerly downloads the
+ * full Monaco bundle on every page. Instead we subscribe via
+ * `onMonacoLoaded`, which only fires when a page actually loads an editor —
+ * the theme is defined during `loader.init()` resolution, before any editor
+ * mounts.
  */
 export const MonacoThemeProvider = () => {
-  const monaco = useMonaco()
   const { resolvedTheme } = useTheme()
 
-  // Define the supabase theme for Monaco before anything is rendered. Using useEffect would sometime load the theme
-  // after the editor was loaded, so it looked off. useMemo will always be run before rendering
-  useMemo(() => {
-    if (monaco && resolvedTheme) {
-      const mode = getTheme(resolvedTheme)
-      monaco.editor.defineTheme('supabase', mode)
-    }
-  }, [resolvedTheme, monaco])
+  useEffect(() => {
+    if (!resolvedTheme) return
+    return onMonacoLoaded((monaco) => {
+      monaco.editor.defineTheme('supabase', getTheme(resolvedTheme))
+    })
+  }, [resolvedTheme])
 
   return null
 }

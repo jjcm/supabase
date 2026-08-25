@@ -12,7 +12,7 @@ import '@/styles/ui.css'
 import 'react-data-grid/lib/styles.css'
 import 'ui-patterns/ShimmeringLoader/index.css'
 
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import {
@@ -41,7 +41,7 @@ import { TimestampInfoProvider } from 'ui-patterns/TimestampInfo'
 import { StudioCommandMenu } from '@/components/interfaces/App/CommandMenu'
 import { StudioCommandProvider as CommandProvider } from '@/components/interfaces/App/CommandMenu/StudioCommandProvider'
 import { FeaturePreviewContextProvider } from '@/components/interfaces/App/FeaturePreview/FeaturePreviewContext'
-import { FeaturePreviewModal } from '@/components/interfaces/App/FeaturePreview/FeaturePreviewModal'
+import { FeaturePreviewModalLazy } from '@/components/interfaces/App/FeaturePreview/FeaturePreviewModalLazy'
 import { MonacoThemeProvider } from '@/components/interfaces/App/MonacoThemeProvider'
 import { RouteValidationWrapper } from '@/components/interfaces/App/RouteValidationWrapper'
 import { MainScrollContainerProvider } from '@/components/layouts/MainScrollContainerContext'
@@ -217,7 +217,7 @@ function CustomApp({ Component, pageProps }: AppPropsWithLayout) {
                                       </MainScrollContainerProvider>
                                       <GlobalShortcuts />
                                       <StudioCommandMenu />
-                                      <FeaturePreviewModal />
+                                      <FeaturePreviewModalLazy />
                                     </FeaturePreviewContextProvider>
                                   </BannerStackProvider>
                                   <Toaster />

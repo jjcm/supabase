@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { useIsLoggedIn, useUser } from 'common'
 import { useRouter } from 'next/router'
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo } from 'react'

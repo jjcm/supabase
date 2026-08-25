@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
