@@ -1,5 +1,7 @@
-import { SchemaInstallationStatus, StripeSchemaComment } from '@stripe/sync-engine/supabase'
-
+import type {
+  SchemaInstallationStatus,
+  StripeSchemaComment,
+} from '@/components/interfaces/Integrations/templates/StripeSyncEngine/schema-comment'
 import type {
   StripeSyncState,
   StripeSyncStateData,

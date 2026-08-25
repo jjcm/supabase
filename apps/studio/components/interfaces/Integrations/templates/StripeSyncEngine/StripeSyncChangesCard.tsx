@@ -1,4 +1,3 @@
-import { SchemaInstallationStatus } from '@stripe/sync-engine/supabase'
 import { EdgeFunctions } from 'icons'
 import { Layers, Loader2, Table } from 'lucide-react'
 import { Card, CardContent, cn } from 'ui'
@@ -12,6 +11,7 @@ import {
   isUninstallDone,
   isUninstalling,
 } from './stripe-sync-status'
+import type { SchemaInstallationStatus } from '@/components/interfaces/Integrations/templates/StripeSyncEngine/schema-comment'
 
 type StripeSyncChangesCardProps = {
   installationStatus: SchemaInstallationStatus

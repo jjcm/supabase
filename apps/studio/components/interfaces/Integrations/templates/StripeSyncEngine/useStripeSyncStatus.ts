@@ -1,6 +1,9 @@
-import { getCurrentVersion, parseSchemaComment } from '@stripe/sync-engine/supabase'
 import { useEffect } from 'react'
 
+import {
+  parseSchemaComment,
+  STRIPE_SYNC_ENGINE_VERSION,
+} from '@/components/interfaces/Integrations/templates/StripeSyncEngine/schema-comment'
 import {
   findStripeSchema,
   isInProgress,
@@ -51,7 +54,7 @@ export const getStripeSyncSchemaComment = (schemas: Schema[]) => {
  * makes impossible states unrepresentable.
  */
 export function useStripeSyncStatus(): StripeSyncStatusResult {
-  const latestAvailableVersion = getCurrentVersion()
+  const latestAvailableVersion = STRIPE_SYNC_ENGINE_VERSION
   const { data: project } = useSelectedProjectQuery()
   const { ref: projectRef, connectionString } = project || {}
 
