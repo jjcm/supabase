@@ -26,6 +26,7 @@
 import * as Sentry from '@sentry/react'
 import type { AnyRouter } from '@tanstack/react-router'
 
+import { connectSentry } from '@/lib/sentry'
 import { buildSentryClientOptions } from '@/lib/sentry-client-options'
 
 let isInitialized = false
@@ -63,4 +64,7 @@ export function initSentryTanStackClient(router: AnyRouter) {
       release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
     })
   )
+
+  // Wire the lazy facade (lib/sentry.ts) that app code reports through
+  connectSentry(Sentry)
 }

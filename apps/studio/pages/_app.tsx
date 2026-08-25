@@ -12,7 +12,7 @@ import '@/styles/ui.css'
 import 'react-data-grid/lib/styles.css'
 import 'ui-patterns/ShimmeringLoader/index.css'
 
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import {

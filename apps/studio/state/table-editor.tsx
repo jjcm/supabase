@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import type { PGColumn } from '@supabase/pg-meta'
 import { useConstant } from 'common'
 import { createContext, PropsWithChildren, useContext } from 'react'

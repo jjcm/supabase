@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { AlertCircle } from 'lucide-react'
 import { ErrorInfo } from 'react'
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary'

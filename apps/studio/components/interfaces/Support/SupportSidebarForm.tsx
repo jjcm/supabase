@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/nextjs'
+import * as Sentry from '@/lib/sentry'
 import { useFlag } from 'common'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
