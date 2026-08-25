@@ -1,7 +1,8 @@
-import posthog, {
-  type CapturedNetworkRequest,
-  type PostHogConfig,
-  type SessionRecordingOptions,
+import type {
+  CapturedNetworkRequest,
+  PostHog,
+  PostHogConfig,
+  SessionRecordingOptions,
 } from 'posthog-js'
 
 import { safeSessionStorage } from './safe-storage'
@@ -54,10 +55,17 @@ export function buildSessionRecordingConfig(
 }
 
 class PostHogClient {
-  /** True after posthog.init() is called (prevents double-init) */
+  /** True after init() is called (prevents double-init) */
   private initStarted = false
   /** True after the `loaded` callback fires, meaning PostHog has fully bootstrapped */
   private initialized = false
+  /**
+   * The posthog-js SDK, loaded on demand by init(). The SDK is deliberately
+   * imported dynamically so its ~50KB (gzip) never lands in the critical-path
+   * bundle — pages that never initialize telemetry (e.g. self-hosted Studio,
+   * or users who decline consent) never download it at all.
+   */
+  private posthog: PostHog | null = null
   private pendingGroups: Record<string, string> = {}
   private pendingIdentification: { userId: string; properties?: Record<string, any> } | null = null
   private pendingEvents: Array<{ event: string; properties: Record<string, any> }> = []
@@ -88,6 +96,18 @@ class PostHogClient {
       return
     }
 
+    this.initStarted = true
+    // Events captured while the SDK downloads are queued (same path as the
+    // pre-consent queue) and flushed by the `loaded` callback below.
+    import('posthog-js')
+      .then(({ default: posthog }) => this.initSdk(posthog, sessionReplay))
+      .catch((error) => {
+        console.error('PostHog SDK failed to load:', error)
+        this.initStarted = false
+      })
+  }
+
+  private initSdk(posthog: PostHog, sessionReplay?: SessionRecordingOptions) {
     const config: Partial<PostHogConfig> = {
       api_host: this.config.apiHost,
       ui_host: this.config.uiHost,
@@ -139,8 +159,8 @@ class PostHogClient {
       },
     }
 
-    this.initStarted = true
-    posthog.init(this.config.apiKey, config)
+    this.posthog = posthog
+    posthog.init(this.config.apiKey!, config)
 
     // Register any feature flag callbacks that were queued before init
     this.pendingFeatureFlagCallbacks.forEach((cb) => posthog.onFeatureFlags(cb))
@@ -150,7 +170,8 @@ class PostHogClient {
   capturePageView(properties: Record<string, any>, hasConsent: boolean = true) {
     if (!hasConsent) return
 
-    if (!this.initialized) {
+    const posthog = this.posthog
+    if (!this.initialized || !posthog) {
       // Queue the event for when PostHog initializes (up to cap)
       // (e.g. poor connection or user not accepting consent right away)
       if (this.pendingEvents.length >= this.maxPendingEvents) {
@@ -179,7 +200,8 @@ class PostHogClient {
   capturePageLeave(properties: Record<string, any>, hasConsent: boolean = true) {
     if (!hasConsent) return
 
-    if (!this.initialized) {
+    const posthog = this.posthog
+    if (!this.initialized || !posthog) {
       // Queue the event for when PostHog initializes (up to cap)
       // (e.g. poor connection or user not accepting consent right away)
       if (this.pendingEvents.length >= this.maxPendingEvents) {
@@ -202,7 +224,8 @@ class PostHogClient {
   identify(userId: string, properties?: Record<string, any>, hasConsent: boolean = true) {
     if (!hasConsent) return
 
-    if (!this.initialized) {
+    const posthog = this.posthog
+    if (!this.initialized || !posthog) {
       // Queue the identification for when PostHog initializes. Merge properties
       // across pre-init calls for the same user so callers don't clobber each
       // other (e.g. useTelemetryIdentify sets gotrue_id, then a separate effect
@@ -233,7 +256,7 @@ class PostHogClient {
     if (!this.initStarted) return
 
     try {
-      posthog.reset()
+      this.posthog?.reset()
     } catch (error) {
       console.error('PostHog reset failed:', error)
     }
@@ -245,9 +268,9 @@ class PostHogClient {
    * (e.g., immediately after OAuth redirect before PostHog loads).
    */
   getDistinctId(): string | undefined {
-    if (this.initialized) {
+    if (this.initialized && this.posthog) {
       try {
-        return posthog.get_distinct_id()
+        return this.posthog.get_distinct_id()
       } catch (error) {
         console.error('PostHog getDistinctId failed:', error)
       }
@@ -303,9 +326,9 @@ class PostHogClient {
    * reads top-level super properties, not person properties, so we index in.
    */
   getPersonProperty(key: string): unknown {
-    if (!this.initialized) return undefined
+    if (!this.initialized || !this.posthog) return undefined
     try {
-      const stored = posthog.get_property('$stored_person_properties')
+      const stored = this.posthog.get_property('$stored_person_properties')
       if (!stored || typeof stored !== 'object') return undefined
       return (stored as Record<string, unknown>)[key]
     } catch {
@@ -336,10 +359,10 @@ class PostHogClient {
       } catch {}
     }
 
-    if (!this.initialized) return undefined
+    if (!this.initialized || !this.posthog) return undefined
 
     try {
-      return posthog.getFeatureFlag(key)
+      return this.posthog.getFeatureFlag(key)
     } catch {
       return undefined
     }
@@ -350,13 +373,14 @@ class PostHogClient {
    * Returns an unsubscribe function.
    */
   onFeatureFlags(callback: () => void): () => void {
-    if (!this.initStarted) {
-      // Queue until init() is called
+    // Queue until the SDK has loaded (covers both "init() not called yet" and
+    // "init() called but the dynamic import is still in flight")
+    if (!this.posthog) {
       this.pendingFeatureFlagCallbacks.add(callback)
       return () => this.pendingFeatureFlagCallbacks.delete(callback)
     }
-    if (typeof posthog.onFeatureFlags !== 'function') return () => {}
-    return posthog.onFeatureFlags(callback) ?? (() => {})
+    if (typeof this.posthog.onFeatureFlags !== 'function') return () => {}
+    return this.posthog.onFeatureFlags(callback) ?? (() => {})
   }
 
   /**
@@ -364,10 +388,10 @@ class PostHogClient {
    * Returns undefined until PostHog's `loaded` callback fires.
    */
   getSessionId(): string | undefined {
-    if (!this.initialized) return undefined
+    if (!this.initialized || !this.posthog) return undefined
 
     try {
-      return posthog.get_session_id()
+      return this.posthog.get_session_id()
     } catch (error) {
       console.error('PostHog getSessionId failed:', error)
       return undefined
@@ -409,7 +433,7 @@ class PostHogClient {
       if (safeSessionStorage.getItem(storageKey) === sessionId) return
 
       const eventName = `${experimentId}_experiment_exposed`
-      posthog.capture(eventName, { experiment_id: experimentId, ...properties })
+      this.posthog?.capture(eventName, { experiment_id: experimentId, ...properties })
       safeSessionStorage.setItem(storageKey, sessionId)
     } catch (error) {
       console.error('PostHog experiment exposure capture failed:', error)
@@ -430,7 +454,7 @@ class PostHogClient {
 
     let distinctId: string | undefined
     try {
-      const id = posthog.get_distinct_id?.()
+      const id = this.posthog?.get_distinct_id?.()
       if (id && id.length > 0) {
         distinctId = id
       }
