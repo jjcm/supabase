@@ -1,8 +1,8 @@
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Badge, cn, Tooltip, TooltipContent, TooltipTrigger } from 'ui'
-import { ShimmeringLoader } from 'ui-patterns/ShimmeringLoader'
+import { GenericSkeletonLoader, ShimmeringLoader } from 'ui-patterns/ShimmeringLoader'
 
-import { InstanceConfiguration } from '../Settings/Infrastructure/InfrastructureConfiguration/InstanceConfiguration'
 import { ActivityStats } from '@/components/interfaces/ProjectHome/ActivityStats'
 import { ProjectConnectionPopover } from '@/components/interfaces/ProjectHome/ProjectConnectionPopover'
 import { ProjectPausedState } from '@/components/layouts/ProjectLayout/PausedState/ProjectPausedState'
@@ -12,6 +12,17 @@ import { useBranchesQuery } from '@/data/branches/branches-query'
 import { useProjectDetailQuery } from '@/data/projects/project-detail-query'
 import { useIsOrioleDb, useSelectedProjectQuery } from '@/hooks/misc/useSelectedProject'
 import { DOCS_URL, IS_PLATFORM, PROJECT_STATUS } from '@/lib/constants'
+
+// The infrastructure diagram is built on a flow-graph library (~55KB gzip),
+// and is platform-only — self-hosted never renders it. Load it on demand so
+// it stays out of the home page's critical path.
+const InstanceConfiguration = dynamic(
+  () =>
+    import('../Settings/Infrastructure/InfrastructureConfiguration/InstanceConfiguration').then(
+      (m) => m.InstanceConfiguration
+    ),
+  { loading: () => <GenericSkeletonLoader /> }
+)
 
 export const TopSection = () => {
   const isOrioleDb = useIsOrioleDb()
