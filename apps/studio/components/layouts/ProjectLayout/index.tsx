@@ -41,7 +41,7 @@ import { RestoringState } from './RestoringState'
 import { UnhealthyState } from './UnhealthyState'
 import { UpgradingState } from './UpgradingState'
 import { CreateBranchModal } from '@/components/interfaces/BranchManagement/CreateBranchModal'
-import { ProjectAPIDocs } from '@/components/interfaces/ProjectAPIDocs/ProjectAPIDocs'
+import { ProjectAPIDocsLazy } from '@/components/interfaces/ProjectAPIDocs/ProjectAPIDocsLazy'
 import { BannerFreeMicroUpgrade } from '@/components/ui/BannerStack/Banners/BannerFreeMicroUpgrade'
 import { BANNER_ID, useBannerStack } from '@/components/ui/BannerStack/BannerStackProvider'
 import { ButtonTooltip } from '@/components/ui/ButtonTooltip'
@@ -351,7 +351,7 @@ export const ProjectLayout = forwardRef<HTMLDivElement, PropsWithChildren<Projec
           </ResizablePanelGroup>
         </div>
         <CreateBranchModal />
-        <ProjectAPIDocs />
+        <ProjectAPIDocsLazy />
       </>
     )
   }
